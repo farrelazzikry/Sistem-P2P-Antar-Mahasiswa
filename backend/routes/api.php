@@ -1,9 +1,13 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ProfileController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
-// Auth
+// ============================================
+// PUBLIC ROUTES (gak butuh login)
+// ============================================
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/send-otp', [AuthController::class, 'sendOtp']);
@@ -12,7 +16,25 @@ Route::post('/send-otp', [AuthController::class, 'sendOtp']);
 Route::post('/forgot-password/send-otp', [AuthController::class, 'forgotPasswordSendOtp']);
 Route::post('/forgot-password/reset', [AuthController::class, 'forgotPasswordReset']);
 
-// Protected
+// Route serve file storage — DI LUAR AUTH
+Route::get('/storage/{path}', function ($path) {
+    if (!Storage::disk('public')->exists($path)) {
+        return response()->json(['message' => 'File not found'], 404);
+    }
+    $file = Storage::disk('public')->get($path);
+    $mimeType = Storage::disk('public')->mimeType($path);
+    return response($file, 200)
+        ->header('Content-Type', $mimeType)
+        ->header('Access-Control-Allow-Origin', '*');
+})->where('path', '.*');
+
+// ============================================
+// PROTECTED ROUTES (butuh login / token)
+// ============================================
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    // Profile
+    Route::get('/profile', [ProfileController::class, 'show']);
+    Route::post('/profile/update', [ProfileController::class, 'update']);
 });

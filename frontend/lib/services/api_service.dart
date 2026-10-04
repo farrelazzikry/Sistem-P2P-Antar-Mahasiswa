@@ -148,6 +148,72 @@ class ApiService {
     }
   }
 
+  // GET PROFILE
+  Future<Response> getProfile() async {
+    try {
+      return await _dio.get('/profile');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // UPDATE PROFILE
+  Future<Response> updateProfile({
+    required String name,
+    String? phone,
+    bool isRunner = false,
+    String? vehicleType,
+    String? vehiclePlate,
+    PlatformFile? profilePhoto,
+  }) async {
+    try {
+      Map<String, dynamic> map = {
+        'name': name,
+        'phone': phone ?? '',
+        'is_runner': isRunner ? '1' : '0',
+        '_method': 'POST', // Biar Laravel detect sebagai POST
+      };
+
+      if (isRunner) {
+        map['vehicle_type'] = vehicleType ?? '';
+        map['vehicle_plate'] = vehiclePlate ?? '';
+      }
+
+      // Kalau ada foto, kirim sebagai multipart
+      if (profilePhoto != null) {
+        MultipartFile multipartFile;
+        if (kIsWeb) {
+          final bytes = await profilePhoto.readAsBytes();
+          multipartFile = MultipartFile.fromBytes(
+            bytes,
+            filename: profilePhoto.name,
+          );
+        } else {
+          if (profilePhoto.path != null) {
+            multipartFile = await MultipartFile.fromFile(
+              profilePhoto.path!,
+              filename: profilePhoto.name,
+            );
+          } else {
+            final bytes = await profilePhoto.readAsBytes();
+            multipartFile = MultipartFile.fromBytes(
+              bytes,
+              filename: profilePhoto.name,
+            );
+          }
+        }
+        map['profile_photo'] = multipartFile;
+      }
+
+      FormData formData = FormData.fromMap(map);
+      return await _dio.post('/profile/update', data: formData);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    } catch (e) {
+      throw e.toString();
+    }
+  }
+
   String _handleError(DioException e) {
     if (e.response != null && e.response?.data != null) {
       final data = e.response!.data;
