@@ -1,0 +1,66 @@
+# ==================
+# GLOBAL GITIGNORE
+# ==================
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment & Secrets (WAJIB!)
+**/.env
+**/.env.*
+!**/.env.example
+
+# Logs
+*.log
+**/storage/logs/*.log
+npm-debug.log*
+yarn-error.log*
+
+# Node
+**/node_modules/
+
+# Laravel specific
+backend/vendor/
+backend/public/storage
+backend/public/build
+backend/public/hot
+backend/storage/framework/cache/data/*
+backend/storage/framework/sessions/*
+backend/storage/framework/views/*
+backend/storage/*.key
+backend/bootstrap/cache/*
+backend/database/*.sqlite
+backend/database/*.sqlite-journal
+backend/storage/app/public/ktm/*
+!backend/storage/app/public/ktm/.gitignore
+
+# Flutter specific
+frontend/.dart_tool/
+frontend/.packages
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.pub-cache/
+frontend/.pub/
+frontend/build/
+frontend/ios/Pods/
+frontend/ios/.symlinks/
+frontend/android/.gradle/
+frontend/android/app/build/
+frontend/android/local.properties
+frontend/android/key.properties
+frontend/android/app/google-services.json
+frontend/*.jks
+frontend/*.keystore
+
+# Testing
+**/.phpunit.result.cache
+**/.phpunit.cache/
+**/coverage/
