@@ -361,4 +361,73 @@ class ApiService {
       throw _handleError(e);
     }
   }
+
+  // ============================================
+  // TEBENGAN
+  // ============================================
+  Future<Response> getTebengans({String? status}) async {
+    try {
+      final query = status != null ? {'status': status} : null;
+      return await _dio.get('/tebengans', queryParameters: query);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Response> createTebengan({
+    required String pickupLocation,
+    required String destination,
+    required String departureTime, // ISO 8601 string
+    required double budget,
+    double fee = 0,
+    required String whatsappNumber,
+  }) async {
+    try {
+      return await _dio.post(
+        '/tebengans',
+        data: {
+          'pickup_location': pickupLocation,
+          'destination': destination,
+          'departure_time': departureTime,
+          'budget': budget,
+          'fee': fee,
+          'whatsapp_number': whatsappNumber,
+        },
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Response> takeTebengan(int id) async {
+    try {
+      return await _dio.post('/tebengans/$id/take');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Response> updateTebenganStatus(int id, String status) async {
+    try {
+      return await _dio.post('/tebengans/$id/status', data: {'status': status});
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Response> getMyTebengans() async {
+    try {
+      return await _dio.get('/tebengans/my-orders');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Response> getTebenganHistory() async {
+    try {
+      return await _dio.get('/tebengans/history');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
 }

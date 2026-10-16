@@ -32,14 +32,50 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
     super.dispose();
   }
 
+  /// Load Jastip + Tebengan, gabungin jadi satu list
   Future<void> _loadMyOrders() async {
     setState(() => _isLoading = true);
     try {
-      final response = await _apiService.getMyJastips();
+      // Fetch 2 endpoint parallel
+      final results = await Future.wait([
+        _apiService.getMyJastips(),
+        _apiService.getMyTebengans(),
+      ]);
+
+      final jastipData = results[0].data;
+      final tebenganData = results[1].data;
+
+      // Gabungin jastip + tebengan, tandai tipenya
+      List<dynamic> combineRequests = [
+        ...(jastipData['my_requests'] ?? [])
+            .map((e) => {...e, '_type': 'jastip'}),
+        ...(tebenganData['my_requests'] ?? [])
+            .map((e) => {...e, '_type': 'tebengan'}),
+      ];
+
+      List<dynamic> combineTasks = [
+        ...(jastipData['my_tasks'] ?? [])
+            .map((e) => {...e, '_type': 'jastip'}),
+        ...(tebenganData['my_tasks'] ?? [])
+            .map((e) => {...e, '_type': 'tebengan'}),
+      ];
+
+      // Sort by created_at descending
+      combineRequests.sort((a, b) {
+        final dateA = DateTime.tryParse(a['created_at'] ?? '') ?? DateTime(2000);
+        final dateB = DateTime.tryParse(b['created_at'] ?? '') ?? DateTime(2000);
+        return dateB.compareTo(dateA);
+      });
+      combineTasks.sort((a, b) {
+        final dateA = DateTime.tryParse(a['created_at'] ?? '') ?? DateTime(2000);
+        final dateB = DateTime.tryParse(b['created_at'] ?? '') ?? DateTime(2000);
+        return dateB.compareTo(dateA);
+      });
+
       if (!mounted) return;
       setState(() {
-        _myRequests = response.data['my_requests'] ?? [];
-        _myTasks = response.data['my_tasks'] ?? [];
+        _myRequests = combineRequests;
+        _myTasks = combineTasks;
         _isLoading = false;
       });
     } catch (e) {
@@ -58,16 +94,13 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
     }
     final url = Uri.parse('https://wa.me/$cleanPhone');
     try {
-      final launched = await launchUrl(
-        url,
-        mode: LaunchMode.externalApplication,
-      );
+      final launched =
+          await launchUrl(url, mode: LaunchMode.externalApplication);
       if (!launched && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Gagal buka WhatsApp'),
-            backgroundColor: Colors.red,
-          ),
+              content: Text('Gagal buka WhatsApp'),
+              backgroundColor: Colors.red),
         );
       }
     } catch (e) {
@@ -78,15 +111,20 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
     }
   }
 
-  Future<void> _updateStatus(int id, String status) async {
+  Future<void> _updateStatus(dynamic order, String status) async {
     try {
-      await _apiService.updateJastipStatus(id, status);
+      final type = order['_type'];
+      if (type == 'jastip') {
+        await _apiService.updateJastipStatus(order['id'], status);
+      } else {
+        await _apiService.updateTebenganStatus(order['id'], status);
+      }
       if (!mounted) return;
       final msg = status == 'done'
           ? 'Order selesai! Jangan lupa kasih rating.'
           : status == 'cancelled'
-          ? 'Order dibatalkan'
-          : 'Order dimulai';
+              ? 'Order dibatalkan'
+              : 'Order dimulai';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(msg), backgroundColor: Colors.green),
       );
@@ -110,32 +148,24 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1B2846),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: Text(
-          message,
-          style: const TextStyle(color: Colors.white70, height: 1.5),
-        ),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(title,
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text(message,
+            style: const TextStyle(color: Colors.white70, height: 1.5)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal', style: TextStyle(color: Colors.white70)),
+            child: const Text('Batal',
+                style: TextStyle(color: Colors.white70)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              confirmText,
-              style: TextStyle(
-                color: confirmColor,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            child: Text(confirmText,
+                style: TextStyle(
+                    color: confirmColor, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -153,6 +183,8 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
         : (order['requester']?['name'] ?? 'Pemesan');
 
     if (rateeId == null) return;
+
+    final type = order['_type'] ?? 'jastip';
 
     await showModalBottomSheet(
       context: context,
@@ -173,7 +205,6 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Handle bar
               Container(
                 width: 40,
                 height: 4,
@@ -183,32 +214,21 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
                 ),
               ),
               const SizedBox(height: 20),
-              const Icon(
-                Icons.star_rate_rounded,
-                color: Colors.amber,
-                size: 48,
-              ),
+              const Icon(Icons.star_rate_rounded,
+                  color: Colors.amber, size: 48),
               const SizedBox(height: 12),
-              const Text(
-                'Kasih Rating',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              const Text('Kasih Rating',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              Text(
-                'Berapa bintang untuk $rateeName?',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.7),
-                  fontSize: 13,
-                ),
-              ),
+              Text('Berapa bintang untuk $rateeName?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 13)),
               const SizedBox(height: 20),
-
-              // Stars
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(5, (i) {
@@ -226,40 +246,32 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
                 }),
               ),
               const SizedBox(height: 8),
-              Text(
-                '$stars bintang',
-                style: const TextStyle(
-                  color: Colors.amber,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
+              Text('$stars bintang',
+                  style: const TextStyle(
+                      color: Colors.amber,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14)),
               const SizedBox(height: 20),
-
-              // Review
               TextField(
                 controller: reviewController,
                 maxLines: 3,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   hintText: 'Review (opsional)',
-                  hintStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.4),
-                  ),
+                  hintStyle:
+                      TextStyle(color: Colors.white.withValues(alpha: 0.4)),
                   filled: true,
                   fillColor: Colors.white.withValues(alpha: 0.08),
                   contentPadding: const EdgeInsets.all(14),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.2),
-                    ),
+                    borderSide:
+                        BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.2),
-                    ),
+                    borderSide:
+                        BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -268,8 +280,6 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Submit
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -278,7 +288,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
                     Navigator.pop(context);
                     try {
                       await _apiService.submitRating(
-                        rateableType: 'jastip',
+                        rateableType: type,
                         rateableId: order['id'],
                         stars: stars,
                         review: reviewController.text.trim().isEmpty
@@ -288,18 +298,16 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Rating berhasil dikirim!'),
-                          backgroundColor: Colors.green,
-                        ),
+                            content: Text('Rating berhasil dikirim!'),
+                            backgroundColor: Colors.green),
                       );
                       _loadMyOrders();
                     } catch (e) {
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(e.toString()),
-                          backgroundColor: Colors.red,
-                        ),
+                            content: Text(e.toString()),
+                            backgroundColor: Colors.red),
                       );
                     }
                   },
@@ -307,13 +315,11 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
                     backgroundColor: Colors.white,
                     foregroundColor: Colors.black,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                        borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text(
-                    'Kirim Rating',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  child: const Text('Kirim Rating',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -327,7 +333,6 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Tab Bar
         Container(
           margin: const EdgeInsets.fromLTRB(20, 16, 20, 12),
           padding: const EdgeInsets.all(4),
@@ -345,21 +350,17 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
             indicatorSize: TabBarIndicatorSize.tab,
             labelColor: Colors.black,
             unselectedLabelColor: Colors.white70,
-            labelStyle: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-            ),
-            unselectedLabelStyle: const TextStyle(
-              fontWeight: FontWeight.w500,
-              fontSize: 13,
-            ),
+            labelStyle:
+                const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            unselectedLabelStyle:
+                const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
             dividerColor: Colors.transparent,
             tabs: [
               Tab(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Sebagai Pemesan'),
+                    const Text('Request Gue'),
                     if (_myRequests.isNotEmpty) ...[
                       const SizedBox(width: 6),
                       _buildBadge(_myRequests.length),
@@ -371,7 +372,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Sebagai Runner'),
+                    const Text('Task Gue'),
                     if (_myTasks.isNotEmpty) ...[
                       const SizedBox(width: 6),
                       _buildBadge(_myTasks.length),
@@ -382,12 +383,10 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
             ],
           ),
         ),
-
         Expanded(
           child: _isLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                )
+                  child: CircularProgressIndicator(color: Colors.white))
               : TabBarView(
                   controller: _tabController,
                   children: [
@@ -426,20 +425,19 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
             Text(
               isRequest ? 'Belum Ada Request' : 'Belum Ada Task',
               style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
               isRequest
-                  ? 'Bikin order jastip di halaman Jastip'
-                  : 'Ambil order di halaman Jastip',
+                  ? 'Bikin order di halaman Jastip atau Tebengan'
+                  : 'Ambil order di halaman Jastip atau Tebengan',
+              textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
-                fontSize: 13,
-              ),
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 13),
             ),
           ],
         ),
@@ -459,8 +457,13 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
   }
 
   Widget _buildOrderCard(dynamic order, {required bool isRequest}) {
+    final type = order['_type'] ?? 'jastip';
+    final isJastip = type == 'jastip';
     final status = order['status'] ?? 'open';
-    final itemName = order['item_name'] ?? '-';
+
+    // Data berbeda per tipe
+    final itemName =
+        isJastip ? (order['item_name'] ?? '-') : 'Tebengan';
     final budget = (order['budget'] ?? 0).toDouble();
     final fee = (order['fee'] ?? 0).toDouble();
 
@@ -468,12 +471,10 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
     final otherName = otherPerson?['name'] ?? '';
     final otherRole = isRequest ? 'Runner' : 'Pemesan';
 
-    // Nomor WA yang dihubungi
     final waNumber = isRequest
         ? (otherPerson?['phone'] ?? '')
         : (order['whatsapp_number'] ?? '');
 
-    // Status rating
     final requesterHasRated = order['requester_has_rated'] == true;
     final runnerHasRated = order['runner_has_rated'] == true;
     final userHasRated = isRequest ? requesterHasRated : runnerHasRated;
@@ -490,50 +491,143 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
+          // Header: tipe badge + status
           Row(
             children: [
-              _buildStatusBadge(status),
-              const Spacer(),
-              Text(
-                '#${order['id']}',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.4),
-                  fontSize: 11,
+              // Badge tipe (Jastip/Tebengan)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: (isJastip ? Colors.greenAccent : Colors.blueAccent)
+                      .withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: (isJastip ? Colors.greenAccent : Colors.blueAccent)
+                        .withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isJastip
+                          ? Icons.shopping_bag_outlined
+                          : Icons.directions_car_outlined,
+                      size: 11,
+                      color: isJastip
+                          ? Colors.greenAccent
+                          : Colors.blueAccent,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isJastip ? 'JASTIP' : 'TEBENGAN',
+                      style: TextStyle(
+                        color: isJastip
+                            ? Colors.greenAccent
+                            : Colors.blueAccent,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              const SizedBox(width: 8),
+              _buildStatusBadge(status),
+              const Spacer(),
+              Text('#${order['id']}',
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.4),
+                      fontSize: 11)),
             ],
           ),
           const SizedBox(height: 12),
 
-          // Item
-          Text(
-            itemName,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+          // Info utama
+          if (isJastip) ...[
+            Text(itemName,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16)),
+          ] else ...[
+            // Tebengan: tampilkan rute
+            Row(
+              children: [
+                const Icon(Icons.my_location,
+                    color: Colors.greenAccent, size: 14),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    order['pickup_location'] ?? '-',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13),
+                  ),
+                ),
+              ],
             ),
-          ),
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                const SizedBox(width: 6),
+                Container(
+                  width: 2,
+                  height: 10,
+                  color: Colors.white.withValues(alpha: 0.2),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                const Icon(Icons.location_on,
+                    color: Colors.redAccent, size: 14),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    order['destination'] ?? '-',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            // Departure time
+            Row(
+              children: [
+                Icon(Icons.access_time,
+                    size: 12, color: Colors.white.withValues(alpha: 0.5)),
+                const SizedBox(width: 4),
+                Text(
+                  _formatDate(order['departure_time'] ?? ''),
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.6),
+                      fontSize: 11),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
 
           // Other person
           if (otherName.isNotEmpty)
             Row(
               children: [
-                Icon(
-                  Icons.person_outline,
-                  size: 14,
-                  color: Colors.white.withValues(alpha: 0.5),
-                ),
+                Icon(Icons.person_outline,
+                    size: 14,
+                    color: Colors.white.withValues(alpha: 0.5)),
                 const SizedBox(width: 6),
-                Text(
-                  '$otherRole: $otherName',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 12,
-                  ),
-                ),
+                Text('$otherRole: $otherName',
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 12)),
               ],
             ),
           const SizedBox(height: 10),
@@ -547,7 +641,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
             ],
           ),
 
-          // Info rating status (kalau done)
+          // Info rating status
           if (status == 'done') ...[
             const SizedBox(height: 12),
             Container(
@@ -575,12 +669,14 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
                     child: Text(
                       userHasRated
                           ? (otherHasRated
-                                ? 'Kamu & $otherRole sudah saling rating'
-                                : 'Kamu udah rating. Nunggu $otherRole...')
+                              ? 'Kamu & $otherRole sudah saling rating'
+                              : 'Kamu udah rating. Nunggu $otherRole...')
                           : 'Kasih rating ke $otherRole',
                       style: TextStyle(
                         fontSize: 11,
-                        color: userHasRated ? Colors.greenAccent : Colors.amber,
+                        color: userHasRated
+                            ? Colors.greenAccent
+                            : Colors.amber,
                       ),
                     ),
                   ),
@@ -594,7 +690,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
           // Action Buttons
           Row(
             children: [
-              // Tombol WhatsApp
+              // WhatsApp
               if (waNumber.isNotEmpty &&
                   status != 'cancelled' &&
                   status != 'done')
@@ -604,25 +700,20 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
                     child: ElevatedButton.icon(
                       onPressed: () => _openWhatsApp(waNumber),
                       icon: const Icon(Icons.chat, size: 16),
-                      label: const Text(
-                        'Chat WhatsApp',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      label: const Text('Chat WA',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF25D366),
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
                   ),
                 ),
 
-              // === REQUESTER BUTTONS ===
+              // Requester: Selesai
               if (isRequest && status == 'on_progress') ...[
                 if (waNumber.isNotEmpty) const SizedBox(width: 8),
                 Expanded(
@@ -632,32 +723,27 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
                       onPressed: () => _confirmAction(
                         title: 'Selesaikan Order?',
                         message:
-                            'Pastikan barang udah kamu terima dengan baik.',
+                            'Pastikan semuanya udah beres ya.',
                         confirmText: 'Selesai',
                         confirmColor: Colors.greenAccent,
-                        onConfirm: () => _updateStatus(order['id'], 'done'),
+                        onConfirm: () => _updateStatus(order, 'done'),
                       ),
                       icon: const Icon(Icons.check_circle_outline, size: 16),
-                      label: const Text(
-                        'Selesai',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      label: const Text('Selesai',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.greenAccent,
                         foregroundColor: Colors.black,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
                   ),
                 ),
               ],
 
-              // Tombol Kasih Rating (Kalau done & belum rating)
+              // Rating
               if (status == 'done' && !userHasRated)
                 Expanded(
                   child: SizedBox(
@@ -665,51 +751,41 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
                     child: ElevatedButton.icon(
                       onPressed: () => _showRatingDialog(order, isRequest),
                       icon: const Icon(Icons.star, size: 16),
-                      label: const Text(
-                        'Kasih Rating',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      label: const Text('Kasih Rating',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.amber,
                         foregroundColor: Colors.black,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
                   ),
                 ),
 
-              // === RUNNER BUTTONS ===
+              // Runner: Mulai
               if (!isRequest && status == 'taken') ...[
                 if (waNumber.isNotEmpty) const SizedBox(width: 8),
                 SizedBox(
                   height: 42,
                   child: ElevatedButton(
-                    onPressed: () => _updateStatus(order['id'], 'on_progress'),
+                    onPressed: () => _updateStatus(order, 'on_progress'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blueAccent,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                          borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                     ),
-                    child: const Text(
-                      'Mulai',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: const Text('Mulai',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
 
-              // Tombol Cancel (Runner only, status taken/on_progress)
+              // Runner: Cancel
               if (!isRequest &&
                   (status == 'taken' || status == 'on_progress')) ...[
                 const SizedBox(width: 8),
@@ -718,25 +794,21 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
                   child: OutlinedButton.icon(
                     onPressed: () => _confirmAction(
                       title: 'Minta Cancel?',
-                      message: 'Order bakal dibatalkan. Pastikan kamu udah hubungi Pemesan via WhatsApp.',
-                      confirmText: 'Cancel Order',
+                      message:
+                          'Order bakal dibatalkan. Pastikan kamu udah hubungi Pemesan.',
+                      confirmText: 'Cancel',
                       confirmColor: Colors.redAccent,
-                      onConfirm: () => _updateStatus(order['id'], 'cancelled'),
+                      onConfirm: () => _updateStatus(order, 'cancelled'),
                     ),
                     icon: const Icon(Icons.cancel_outlined, size: 14),
-                    label: const Text(
-                      'Cancel',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    label: const Text('Cancel',
+                        style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.bold)),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.redAccent,
                       side: const BorderSide(color: Colors.redAccent),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                          borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                     ),
                   ),
@@ -749,6 +821,20 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
     );
   }
 
+  String _formatDate(String dateStr) {
+    if (dateStr.isEmpty) return '-';
+    try {
+      final date = DateTime.parse(dateStr);
+      final months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+        'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+      ];
+      return '${date.day} ${months[date.month - 1]} • ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return '-';
+    }
+  }
+
   Widget _chip(String text, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -756,14 +842,9 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
+      child: Text(text,
+          style: TextStyle(
+              color: color, fontSize: 11, fontWeight: FontWeight.w500)),
     );
   }
 
@@ -803,14 +884,9 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+      child: Text(label,
+          style: TextStyle(
+              color: color, fontSize: 10, fontWeight: FontWeight.bold)),
     );
   }
 }

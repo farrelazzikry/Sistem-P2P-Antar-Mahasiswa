@@ -31,14 +31,54 @@ class _RiwayatScreenState extends State<RiwayatScreen>
     super.dispose();
   }
 
+  /// Load history jastip + tebengan, gabungin
   Future<void> _loadHistory() async {
     setState(() => _isLoading = true);
     try {
-      final response = await _apiService.getHistory();
+      // Fetch 2 endpoint parallel
+      final results = await Future.wait([
+        _apiService.getHistory(),          // jastip
+        _apiService.getTebenganHistory(),  // tebengan
+      ]);
+
+      final jastipData = results[0].data;
+      final tebenganData = results[1].data;
+
+      // Gabungin + tandai tipe
+      List<dynamic> combineReq = [
+        ...(jastipData['as_requester'] ?? [])
+            .map((e) => {...e, '_type': 'jastip'}),
+        ...(tebenganData['as_requester'] ?? [])
+            .map((e) => {...e, '_type': 'tebengan'}),
+      ];
+
+      List<dynamic> combineRun = [
+        ...(jastipData['as_runner'] ?? [])
+            .map((e) => {...e, '_type': 'jastip'}),
+        ...(tebenganData['as_runner'] ?? [])
+            .map((e) => {...e, '_type': 'tebengan'}),
+      ];
+
+      // Sort by updated_at descending
+      combineReq.sort((a, b) {
+        final dateA =
+            DateTime.tryParse(a['updated_at'] ?? '') ?? DateTime(2000);
+        final dateB =
+            DateTime.tryParse(b['updated_at'] ?? '') ?? DateTime(2000);
+        return dateB.compareTo(dateA);
+      });
+      combineRun.sort((a, b) {
+        final dateA =
+            DateTime.tryParse(a['updated_at'] ?? '') ?? DateTime(2000);
+        final dateB =
+            DateTime.tryParse(b['updated_at'] ?? '') ?? DateTime(2000);
+        return dateB.compareTo(dateA);
+      });
+
       if (!mounted) return;
       setState(() {
-        _asRequester = response.data['as_requester'] ?? [];
-        _asRunner = response.data['as_runner'] ?? [];
+        _asRequester = combineReq;
+        _asRunner = combineRun;
         _isLoading = false;
       });
     } catch (e) {
@@ -69,14 +109,16 @@ class _RiwayatScreenState extends State<RiwayatScreen>
               ),
               const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   '${_asRequester.length + _asRunner.length}',
-                  style: const TextStyle(color: Colors.white, fontSize: 11),
+                  style: const TextStyle(
+                      color: Colors.white, fontSize: 11),
                 ),
               ),
             ],
@@ -90,7 +132,8 @@ class _RiwayatScreenState extends State<RiwayatScreen>
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+            border:
+                Border.all(color: Colors.white.withValues(alpha: 0.15)),
           ),
           child: TabBar(
             controller: _tabController,
@@ -102,13 +145,9 @@ class _RiwayatScreenState extends State<RiwayatScreen>
             labelColor: Colors.black,
             unselectedLabelColor: Colors.white70,
             labelStyle: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-            ),
+                fontWeight: FontWeight.bold, fontSize: 13),
             unselectedLabelStyle: const TextStyle(
-              fontWeight: FontWeight.w500,
-              fontSize: 13,
-            ),
+                fontWeight: FontWeight.w500, fontSize: 13),
             dividerColor: Colors.transparent,
             tabs: [
               Tab(
@@ -143,8 +182,7 @@ class _RiwayatScreenState extends State<RiwayatScreen>
         Expanded(
           child: _isLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                )
+                  child: CircularProgressIndicator(color: Colors.white))
               : TabBarView(
                   controller: _tabController,
                   children: [
@@ -183,19 +221,17 @@ class _RiwayatScreenState extends State<RiwayatScreen>
             const Text(
               'Belum Ada Riwayat',
               style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
               'Transaksi selesai & dibatalkan bakal muncul di sini',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
-                fontSize: 13,
-              ),
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 13),
             ),
           ],
         ),
@@ -214,16 +250,16 @@ class _RiwayatScreenState extends State<RiwayatScreen>
   }
 
   Widget _buildHistoryCard(dynamic order, String role) {
+    final type = order['_type'] ?? 'jastip';
+    final isJastip = type == 'jastip';
     final status = order['status'] ?? '-';
-    final itemName = order['item_name'] ?? '-';
     final budget = (order['budget'] ?? 0).toDouble();
     final fee = (order['fee'] ?? 0).toDouble();
     final updatedAt = order['updated_at'] ?? '';
 
-    // Ambil data lawan
-    final otherPerson = role == 'Pemesan'
-        ? order['runner']
-        : order['requester'];
+    // Other person
+    final otherPerson =
+        role == 'Pemesan' ? order['runner'] : order['requester'];
     final otherName = otherPerson?['name'] ?? '-';
     final otherRole = role == 'Pemesan' ? 'Runner' : 'Pemesan';
 
@@ -241,49 +277,133 @@ class _RiwayatScreenState extends State<RiwayatScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Status + Tanggal
+          // Header: Badge tipe + Status + Tanggal
           Row(
             children: [
+              // Badge tipe
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color:
+                      (isJastip ? Colors.greenAccent : Colors.blueAccent)
+                          .withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: (isJastip
+                            ? Colors.greenAccent
+                            : Colors.blueAccent)
+                        .withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isJastip
+                          ? Icons.shopping_bag_outlined
+                          : Icons.directions_car_outlined,
+                      size: 11,
+                      color: isJastip
+                          ? Colors.greenAccent
+                          : Colors.blueAccent,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isJastip ? 'JASTIP' : 'TEBENGAN',
+                      style: TextStyle(
+                        color: isJastip
+                            ? Colors.greenAccent
+                            : Colors.blueAccent,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
               _buildStatusBadge(status),
               const Spacer(),
               Text(
                 formattedDate,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.4),
-                  fontSize: 11,
-                ),
+                    color: Colors.white.withValues(alpha: 0.4),
+                    fontSize: 11),
               ),
             ],
           ),
           const SizedBox(height: 12),
 
-          // Item name
-          Text(
-            itemName,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+          // Info utama
+          if (isJastip) ...[
+            Text(
+              order['item_name'] ?? '-',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16),
             ),
-          ),
+          ] else ...[
+            // Tebengan: rute
+            Row(
+              children: [
+                const Icon(Icons.my_location,
+                    color: Colors.greenAccent, size: 14),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    order['pickup_location'] ?? '-',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            const Padding(
+              padding: EdgeInsets.only(left: 6),
+              child: SizedBox(
+                height: 10,
+                child: VerticalDivider(width: 2, thickness: 2),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                const Icon(Icons.location_on,
+                    color: Colors.redAccent, size: 14),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    order['destination'] ?? '-',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
 
           // Other person
           if (otherName != '-')
             Row(
               children: [
-                Icon(
-                  Icons.person_outline,
-                  size: 14,
-                  color: Colors.white.withValues(alpha: 0.5),
-                ),
+                Icon(Icons.person_outline,
+                    size: 14,
+                    color: Colors.white.withValues(alpha: 0.5)),
                 const SizedBox(width: 6),
                 Text(
                   '$otherRole: $otherName',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 12,
-                  ),
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 12),
                 ),
               ],
             ),
@@ -292,13 +412,15 @@ class _RiwayatScreenState extends State<RiwayatScreen>
           // Budget & Fee
           Row(
             children: [
-              _chip('Budget: Rp ${budget.toStringAsFixed(0)}', Colors.white),
+              _chip('Budget: Rp ${budget.toStringAsFixed(0)}',
+                  Colors.white),
               const SizedBox(width: 8),
-              _chip('Fee: Rp ${fee.toStringAsFixed(0)}', Colors.greenAccent),
+              _chip('Fee: Rp ${fee.toStringAsFixed(0)}',
+                  Colors.greenAccent),
             ],
           ),
 
-          // Info khusus untuk status
+          // Info status
           if (status == 'cancelled') ...[
             const SizedBox(height: 12),
             Container(
@@ -307,24 +429,20 @@ class _RiwayatScreenState extends State<RiwayatScreen>
                 color: Colors.redAccent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: Colors.redAccent.withValues(alpha: 0.3),
-                ),
+                    color: Colors.redAccent.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.cancel_outlined,
-                    color: Colors.redAccent,
-                    size: 16,
-                  ),
+                  const Icon(Icons.cancel_outlined,
+                      color: Colors.redAccent, size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Order dibatalkan',
                       style: TextStyle(
-                        color: Colors.redAccent.withValues(alpha: 0.9),
-                        fontSize: 11,
-                      ),
+                          color:
+                              Colors.redAccent.withValues(alpha: 0.9),
+                          fontSize: 11),
                     ),
                   ),
                 ],
@@ -338,24 +456,20 @@ class _RiwayatScreenState extends State<RiwayatScreen>
                 color: Colors.greenAccent.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: Colors.greenAccent.withValues(alpha: 0.3),
-                ),
+                    color: Colors.greenAccent.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.check_circle,
-                    color: Colors.greenAccent,
-                    size: 16,
-                  ),
+                  const Icon(Icons.check_circle,
+                      color: Colors.greenAccent, size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Transaksi selesai',
                       style: TextStyle(
-                        color: Colors.greenAccent.withValues(alpha: 0.9),
-                        fontSize: 11,
-                      ),
+                          color: Colors.greenAccent
+                              .withValues(alpha: 0.9),
+                          fontSize: 11),
                     ),
                   ),
                 ],
@@ -372,18 +486,8 @@ class _RiwayatScreenState extends State<RiwayatScreen>
     try {
       final date = DateTime.parse(dateStr);
       final months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'Mei',
-        'Jun',
-        'Jul',
-        'Agu',
-        'Sep',
-        'Okt',
-        'Nov',
-        'Des',
+        'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+        'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
       ];
       return '${date.day} ${months[date.month - 1]} ${date.year}';
     } catch (_) {
@@ -401,10 +505,7 @@ class _RiwayatScreenState extends State<RiwayatScreen>
       child: Text(
         text,
         style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-        ),
+            color: color, fontSize: 11, fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -436,10 +537,7 @@ class _RiwayatScreenState extends State<RiwayatScreen>
       child: Text(
         label,
         style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-        ),
+            color: color, fontSize: 10, fontWeight: FontWeight.bold),
       ),
     );
   }

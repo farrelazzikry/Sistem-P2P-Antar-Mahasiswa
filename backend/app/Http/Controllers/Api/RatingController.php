@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Jastip;
+use App\Models\Tebengan;
 use App\Models\Rating;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -11,16 +12,6 @@ use Illuminate\Support\Facades\Validator;
 
 class RatingController extends Controller
 {
-    /**
-     * SUBMIT RATING
-     * POST /api/ratings
-     * Body: {
-     *   rateable_type: 'jastip',
-     *   rateable_id: 1,
-     *   stars: 5,
-     *   review: 'Mantap!'
-     * }
-     */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -40,6 +31,9 @@ class RatingController extends Controller
         if ($request->rateable_type === 'jastip') {
             $rateable = Jastip::find($request->rateable_id);
             $rateableClass = Jastip::class;
+        } elseif ($request->rateable_type === 'tebengan') {
+            $rateable = Tebengan::find($request->rateable_id);
+            $rateableClass = Tebengan::class;
         } else {
             return response()->json(['message' => 'Tipe rating belum didukung'], 400);
         }
@@ -48,12 +42,10 @@ class RatingController extends Controller
             return response()->json(['message' => 'Order tidak ditemukan'], 404);
         }
 
-        // Cek status harus done
         if ($rateable->status !== 'done') {
             return response()->json(['message' => 'Order belum selesai'], 400);
         }
 
-        // Cek apakah user bagian dari order ini
         $isRequester = $rateable->requester_id === $user->id;
         $isRunner = $rateable->runner_id === $user->id;
 
@@ -61,20 +53,18 @@ class RatingController extends Controller
             return response()->json(['message' => 'Anda tidak berhak memberi rating'], 403);
         }
 
-        // Tentukan siapa yang dinilai & role
         if ($isRequester) {
             $rateeId = $rateable->runner_id;
-            $role = 'driver'; // Requester menilai Runner sebagai driver
+            $role = 'driver';
         } else {
             $rateeId = $rateable->requester_id;
-            $role = 'requester'; // Runner menilai Requester
+            $role = 'requester';
         }
 
         if (!$rateeId) {
             return response()->json(['message' => 'Tidak ada pihak untuk dinilai'], 400);
         }
 
-        // Cek apakah user sudah pernah rating order ini
         $existing = Rating::where('rater_id', $user->id)
             ->where('rateable_type', $rateableClass)
             ->where('rateable_id', $rateable->id)
@@ -84,7 +74,6 @@ class RatingController extends Controller
             return response()->json(['message' => 'Anda sudah memberi rating untuk order ini'], 400);
         }
 
-        // Simpan rating
         $rating = Rating::create([
             'rater_id' => $user->id,
             'ratee_id' => $rateeId,
@@ -95,7 +84,6 @@ class RatingController extends Controller
             'role' => $role,
         ]);
 
-        // Update average rating user
         $this->updateUserRating($rateeId, $role);
 
         return response()->json([
@@ -104,9 +92,6 @@ class RatingController extends Controller
         ], 201);
     }
 
-    /**
-     * Update rating avg user
-     */
     private function updateUserRating($userId, $role)
     {
         $avgStars = Rating::where('ratee_id', $userId)
@@ -123,10 +108,6 @@ class RatingController extends Controller
         }
     }
 
-    /**
-     * CEK STATUS RATING USER UNTUK SUATU ORDER
-     * GET /api/ratings/status/{type}/{id}
-     */
     public function status(Request $request, $type, $id)
     {
         $user = $request->user();
@@ -134,6 +115,9 @@ class RatingController extends Controller
         if ($type === 'jastip') {
             $rateable = Jastip::find($id);
             $rateableClass = Jastip::class;
+        } elseif ($type === 'tebengan') {
+            $rateable = Tebengan::find($id);
+            $rateableClass = Tebengan::class;
         } else {
             return response()->json(['message' => 'Tipe rating belum didukung'], 400);
         }

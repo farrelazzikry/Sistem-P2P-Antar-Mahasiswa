@@ -135,7 +135,7 @@ class JastipController extends Controller
      * POST /api/jastips/{id}/status
      * Body: { status: 'on_progress' | 'done' | 'cancelled' }
      */
-        public function updateStatus(Request $request, $id)
+    public function updateStatus(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
             'status' => 'required|in:on_progress,done,cancelled',
@@ -194,26 +194,88 @@ class JastipController extends Controller
         ], 200);
     }
     /**
-     * MY ORDERS
-     * GET /api/jastips/my-orders
+     * MY ORDERS (AKTIF)
+     * Return: order aktif + order done yang BELUM di-rating user ini
      */
     public function myOrders(Request $request)
     {
         $user = $request->user();
+        $activeStatuses = ['open', 'taken', 'on_progress'];
 
         $myRequests = Jastip::with('runner:id,name,username,profile_photo')
             ->where('requester_id', $user->id)
+            ->where(function ($q) use ($activeStatuses, $user) {
+                $q->whereIn('status', $activeStatuses)
+                    ->orWhere(function ($q2) use ($user) {
+                        $q2->where('status', 'done')
+                            ->whereDoesntHave('ratings', function ($q3) use ($user) {
+                                $q3->where('rater_id', $user->id);
+                            });
+                    });
+            })
             ->orderBy('created_at', 'desc')
             ->get();
 
         $myTasks = Jastip::with('requester:id,name,username,profile_photo')
             ->where('runner_id', $user->id)
+            ->where(function ($q) use ($activeStatuses, $user) {
+                $q->whereIn('status', $activeStatuses)
+                    ->orWhere(function ($q2) use ($user) {
+                        $q2->where('status', 'done')
+                            ->whereDoesntHave('ratings', function ($q3) use ($user) {
+                                $q3->where('rater_id', $user->id);
+                            });
+                    });
+            })
             ->orderBy('created_at', 'desc')
             ->get();
 
         return response()->json([
             'my_requests' => $myRequests,
             'my_tasks' => $myTasks,
+        ], 200);
+    }
+    /**
+     * HISTORY
+     * Return: order done yang UDAH di-rating user + order cancelled
+     */
+    public function history(Request $request)
+    {
+        $user = $request->user();
+
+        // Sebagai Requester
+        $asRequester = Jastip::with('runner:id,name,username,profile_photo')
+            ->where('requester_id', $user->id)
+            ->where(function ($q) use ($user) {
+                $q->where('status', 'cancelled')
+                    ->orWhere(function ($q2) use ($user) {
+                        $q2->where('status', 'done')
+                            ->whereHas('ratings', function ($q3) use ($user) {
+                                $q3->where('rater_id', $user->id);
+                            });
+                    });
+            })
+            ->orderBy('updated_at', 'desc')
+            ->get();
+
+        // Sebagai Runner
+        $asRunner = Jastip::with('requester:id,name,username,profile_photo')
+            ->where('runner_id', $user->id)
+            ->where(function ($q) use ($user) {
+                $q->where('status', 'cancelled')
+                    ->orWhere(function ($q2) use ($user) {
+                        $q2->where('status', 'done')
+                            ->whereHas('ratings', function ($q3) use ($user) {
+                                $q3->where('rater_id', $user->id);
+                            });
+                    });
+            })
+            ->orderBy('updated_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'as_requester' => $asRequester,
+            'as_runner' => $asRunner,
         ], 200);
     }
 }
