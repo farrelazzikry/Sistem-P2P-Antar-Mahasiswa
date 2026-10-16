@@ -7,6 +7,8 @@ import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'jastip_screen.dart';
 import 'my_orders_screen.dart';
+import 'riwayat_screen.dart';
+import 'tebengan_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,7 +27,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Key buat refresh tab pas pindah
   Key _ordersKey = UniqueKey();
-  Key _profileKey = UniqueKey(); // ← TAMBAH INI
+  Key _profileKey = UniqueKey();
+  Key _riwayatKey = UniqueKey();
 
   @override
   void initState() {
@@ -75,8 +78,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final pages = [
       _buildBeranda(),
       MyOrdersScreen(key: _ordersKey),
-      _buildPlaceholder('Riwayat', Icons.history),
-      ProfileScreen(key: _profileKey), // ← PAKE KEY
+      RiwayatScreen(key: _riwayatKey),
+      ProfileScreen(key: _profileKey),
     ];
 
     return Scaffold(
@@ -96,9 +99,10 @@ class _HomeScreenState extends State<HomeScreen> {
           onTap: (i) {
             setState(() {
               _currentIndex = i;
-              // Refresh key pas pindah ke tab Pesanan / Profil
+              // Refresh key pas pindah tab
               if (i == 1) _ordersKey = UniqueKey();
-              if (i == 3) _profileKey = UniqueKey(); // ← TAMBAH INI
+              if (i == 2) _riwayatKey = UniqueKey();
+              if (i == 3) _profileKey = UniqueKey();
             });
           },
           type: BottomNavigationBarType.fixed,
@@ -244,7 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Layanan Kampus
+            // Layanan Kampus (2 card sama tinggi)
             const Text(
               'Layanan Kampus',
               style: TextStyle(
@@ -254,41 +258,45 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _serviceCard(
-                    icon: Icons.directions_car_outlined,
-                    title: 'Tebengan Mahasiswa',
-                    subtitle: 'Ride sharing kampus & rute harian',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Halaman Tebengan segera hadir!'),
-                          backgroundColor: Colors.orange,
-                        ),
-                      );
-                    },
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _serviceCard(
+                      icon: Icons.directions_car_outlined,
+                      title: 'Tebengan Mahasiswa',
+                      subtitle: 'Ride sharing kampus & rute harian',
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TebenganScreen(),
+                          ),
+                        );
+                        _loadRecentFeed();
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _serviceCard(
-                    icon: Icons.shopping_bag_outlined,
-                    title: 'Jasa Titip (Jastip)',
-                    subtitle: 'Antar jemput dokumen, makanan & barang',
-                    onTap: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const JastipScreen(),
-                        ),
-                      );
-                      _loadRecentFeed();
-                    },
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _serviceCard(
+                      icon: Icons.shopping_bag_outlined,
+                      title: 'Jasa Titip (Jastip)',
+                      subtitle: 'Antar jemput dokumen, makanan & barang',
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const JastipScreen(),
+                          ),
+                        );
+                        _loadRecentFeed();
+                      },
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -483,6 +491,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.max,
           children: [
             Container(
               padding: const EdgeInsets.all(10),
@@ -502,44 +511,18 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.6),
-                fontSize: 11,
-                height: 1.4,
+            Expanded(
+              child: Text(
+                subtitle,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.6),
+                  fontSize: 11,
+                  height: 1.4,
+                ),
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildPlaceholder(String title, IconData icon) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 60, color: Colors.white.withValues(alpha: 0.3)),
-          const SizedBox(height: 16),
-          Text(
-            'Halaman $title',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Belum diimplementasikan',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.5),
-              fontSize: 13,
-            ),
-          ),
-        ],
       ),
     );
   }

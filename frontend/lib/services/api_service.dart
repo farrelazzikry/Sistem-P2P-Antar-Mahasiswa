@@ -350,4 +350,15 @@ class ApiService {
       throw _handleError(e);
     }
   }
+
+  // ============================================
+  // JASTIP HISTORY
+  // ============================================
+  Future<Response> getHistory() async {
+    try {
+      return await _dio.get('/jastips/history');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
 }
