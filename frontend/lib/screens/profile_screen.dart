@@ -26,30 +26,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadProfile() async {
-    // Coba ambil dari cache dulu biar cepet
-    final prefs = await SharedPreferences.getInstance();
-    final cachedUser = prefs.getString('user_data');
-    if (cachedUser != null) {
-      setState(() {
-        _user = jsonDecode(cachedUser);
-        _isLoading = false;
-      });
-    }
-
-    // Fetch dari API biar fresh
+    // API DULU, baru cache fallback
     try {
       final response = await _apiService.getProfile();
       final userData = response.data['user'];
+      if (!mounted) return;
+      setState(() {
+        _user = userData;
+        _isLoading = false;
+      });
+      // Update cache
+      final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_data', jsonEncode(userData));
-      if (mounted) {
+    } catch (e) {
+      // Kalau API gagal, baru pake cache
+      final prefs = await SharedPreferences.getInstance();
+      final cachedUser = prefs.getString('user_data');
+      if (cachedUser != null && mounted) {
         setState(() {
-          _user = userData;
+          _user = jsonDecode(cachedUser);
           _isLoading = false;
         });
-      }
-    } catch (e) {
-      if (mounted && _user == null) {
-        setState(() => _isLoading = false);
+      } else {
+        if (mounted) setState(() => _isLoading = false);
       }
     }
   }

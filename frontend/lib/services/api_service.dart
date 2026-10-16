@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
@@ -236,5 +237,117 @@ class ApiService {
       return 'Server error (${e.response?.statusCode}). Coba lagi nanti.';
     }
     return 'Terjadi kesalahan: ${e.message}';
+  }
+
+  // ============================================
+  // JASTIP
+  // ============================================
+  Future<Response> getJastips({String? status}) async {
+    try {
+      final query = status != null ? {'status': status} : null;
+      return await _dio.get('/jastips', queryParameters: query);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Response> createJastip({
+    required String itemName,
+    String? itemDescription,
+    required String buyLocation,
+    required String deliveryLocation,
+    required double budget,
+    double fee = 0,
+    required String whatsappNumber,
+  }) async {
+    try {
+      return await _dio.post(
+        '/jastips',
+        data: {
+          'item_name': itemName,
+          'item_description': itemDescription,
+          'buy_location': buyLocation,
+          'delivery_location': deliveryLocation,
+          'budget': budget,
+          'fee': fee,
+          'whatsapp_number': whatsappNumber,
+        },
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Response> takeJastip(int id) async {
+    try {
+      return await _dio.post('/jastips/$id/take');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Response> getMyJastips() async {
+    try {
+      return await _dio.get('/jastips/my-orders');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // ============================================
+  // HELPER: Ambil user data dari cache
+  // ============================================
+  Future<Map<String, dynamic>?> getUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userData = prefs.getString('user_data');
+    if (userData == null) return null;
+    try {
+      return jsonDecode(userData) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ============================================
+  // UPDATE JASTIP STATUS (buat runner/requester)
+  // ============================================
+  Future<Response> updateJastipStatus(int id, String status) async {
+    try {
+      return await _dio.post('/jastips/$id/status', data: {'status': status});
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // ============================================
+  // RATING
+  // ============================================
+  Future<Response> submitRating({
+    required String rateableType,
+    required int rateableId,
+    required int stars,
+    String? review,
+  }) async {
+    try {
+      return await _dio.post(
+        '/ratings',
+        data: {
+          'rateable_type': rateableType,
+          'rateable_id': rateableId,
+          'stars': stars,
+          'review': review,
+        },
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Response> checkRatingStatus(String type, int id) async {
+    try {
+      return await _dio.get('/ratings/status/$type/$id');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
   }
 }

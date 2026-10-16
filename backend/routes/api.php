@@ -4,6 +4,8 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProfileController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+use App\Http\Controllers\Api\JastipController;
+use App\Http\Controllers\Api\RatingController;
 
 // ============================================
 // PUBLIC ROUTES (gak butuh login)
@@ -37,4 +39,16 @@ Route::middleware('auth:sanctum')->group(function () {
     // Profile
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile/update', [ProfileController::class, 'update']);
+
+    // Jastip
+    Route::get('/jastips', [JastipController::class, 'index']);
+    Route::post('/jastips', [JastipController::class, 'store']);
+    Route::get('/jastips/my-orders', [JastipController::class, 'myOrders']);
+    Route::get('/jastips/{id}', [JastipController::class, 'show']);
+    Route::post('/jastips/{id}/take', [JastipController::class, 'take']);
+    Route::post('/jastips/{id}/status', [JastipController::class, 'updateStatus']);
+
+    // Rating
+    Route::post('/ratings', [RatingController::class, 'store']);
+    Route::get('/ratings/status/{type}/{id}', [RatingController::class, 'status']);
 });
