@@ -36,6 +36,30 @@ class _TebenganScreenState extends State<TebenganScreen> {
     super.dispose();
   }
 
+  void _showCustomSnackBar(String msg, Color color, IconData icon) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                msg,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   Future<void> _loadUser() async {
     try {
       final response = await _apiService.getProfile();
@@ -72,9 +96,7 @@ class _TebenganScreenState extends State<TebenganScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
-      );
+      _showCustomSnackBar(e.toString(), Colors.red, Icons.error_outline);
     }
   }
 
@@ -116,18 +138,15 @@ class _TebenganScreenState extends State<TebenganScreen> {
     try {
       await _apiService.takeTebengan(id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tebengan berhasil diambil! Cek di tab Pesanan.'),
-          backgroundColor: Colors.green,
-        ),
+      _showCustomSnackBar(
+        'Tebengan berhasil diambil! Cek tab Pesanan.',
+        Colors.green,
+        Icons.check_circle,
       );
       _loadTebengans();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
-      );
+      _showCustomSnackBar(e.toString(), Colors.red, Icons.error_outline);
     }
   }
 
@@ -149,7 +168,6 @@ class _TebenganScreenState extends State<TebenganScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Header
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                 child: Row(
@@ -250,8 +268,6 @@ class _TebenganScreenState extends State<TebenganScreen> {
                   ],
                 ),
               ),
-
-              // Title
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
@@ -287,7 +303,7 @@ class _TebenganScreenState extends State<TebenganScreen> {
               ),
               const SizedBox(height: 12),
 
-              // Feed
+              // === RESPONSIVE GRID/LIST ===
               Expanded(
                 child: _isLoading
                     ? const Center(
@@ -298,11 +314,40 @@ class _TebenganScreenState extends State<TebenganScreen> {
                     : RefreshIndicator(
                         onRefresh: _loadTebengans,
                         color: Colors.white,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                          itemCount: _filteredTebengans.length,
-                          itemBuilder: (context, i) =>
-                              _buildTebenganCard(_filteredTebengans[i]),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            if (constraints.maxWidth >= 800) {
+                              return GridView.builder(
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  0,
+                                  20,
+                                  100,
+                                ),
+                                gridDelegate:
+                                    const SliverGridDelegateWithMaxCrossAxisExtent(
+                                      maxCrossAxisExtent: 500,
+                                      crossAxisSpacing: 16,
+                                      mainAxisSpacing: 16,
+                                      mainAxisExtent: 410,
+                                    ),
+                                itemCount: _filteredTebengans.length,
+                                itemBuilder: (context, i) =>
+                                    _buildTebenganCard(_filteredTebengans[i]),
+                              );
+                            }
+                            return ListView.builder(
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                0,
+                                20,
+                                100,
+                              ),
+                              itemCount: _filteredTebengans.length,
+                              itemBuilder: (context, i) =>
+                                  _buildTebenganCard(_filteredTebengans[i]),
+                            );
+                          },
                         ),
                       ),
               ),
@@ -370,7 +415,6 @@ class _TebenganScreenState extends State<TebenganScreen> {
     final fee = (tebengan['fee'] ?? 0).toDouble();
     final isMyOrder = tebengan['requester_id'] == _currentUserId;
 
-    // Format departure time
     String departureFormatted = '-';
     try {
       final dt = DateTime.parse(tebengan['departure_time'] ?? '');
@@ -408,7 +452,6 @@ class _TebenganScreenState extends State<TebenganScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Row(
             children: [
               CircleAvatar(
@@ -494,8 +537,6 @@ class _TebenganScreenState extends State<TebenganScreen> {
             ],
           ),
           const SizedBox(height: 14),
-
-          // Route
           Row(
             children: [
               const Icon(
@@ -543,8 +584,6 @@ class _TebenganScreenState extends State<TebenganScreen> {
             ],
           ),
           const SizedBox(height: 12),
-
-          // Departure
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -571,8 +610,6 @@ class _TebenganScreenState extends State<TebenganScreen> {
             ),
           ),
           const SizedBox(height: 10),
-
-          // Budget & Fee
           Row(
             children: [
               Expanded(
@@ -642,8 +679,6 @@ class _TebenganScreenState extends State<TebenganScreen> {
             ],
           ),
           const SizedBox(height: 14),
-
-          // Action
           if (isMyOrder)
             Container(
               width: double.infinity,

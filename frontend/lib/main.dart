@@ -1,6 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// Import semua halaman
 import 'screens/login_screen.dart';
+import 'screens/home_screen.dart';
+import 'screens/admin_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -11,52 +16,90 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseTheme = ThemeData(
-      brightness: Brightness.dark,
-      scaffoldBackgroundColor: const Color(0xFF0B132B),
-      useMaterial3: true,
-    );
-
     return MaterialApp(
       title: 'Polibatam Ride',
       debugShowCheckedModeBanner: false,
-      theme: baseTheme.copyWith(
-        textTheme: TextTheme(
-          // Poppins buat heading
-          displayLarge: GoogleFonts.poppins(
-              fontSize: 57, fontWeight: FontWeight.bold),
-          displayMedium: GoogleFonts.poppins(
-              fontSize: 45, fontWeight: FontWeight.bold),
-          displaySmall: GoogleFonts.poppins(
-              fontSize: 36, fontWeight: FontWeight.bold),
-          headlineLarge: GoogleFonts.poppins(
-              fontSize: 32, fontWeight: FontWeight.bold),
-          headlineMedium: GoogleFonts.poppins(
-              fontSize: 28, fontWeight: FontWeight.w600),
-          headlineSmall: GoogleFonts.poppins(
-              fontSize: 24, fontWeight: FontWeight.w600),
-          titleLarge: GoogleFonts.poppins(
-              fontSize: 22, fontWeight: FontWeight.w600),
-          titleMedium: GoogleFonts.poppins(
-              fontSize: 16, fontWeight: FontWeight.w600),
-          titleSmall: GoogleFonts.poppins(
-              fontSize: 14, fontWeight: FontWeight.w500),
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF0B132B),
+        useMaterial3: true,
+      ),
+      // === GANTI HOME JADI AuthGate ===
+      home: const AuthGate(), 
+    );
+  }
+}
 
-          // Inter buat body
-          bodyLarge: GoogleFonts.inter(fontSize: 16),
-          bodyMedium: GoogleFonts.inter(fontSize: 14),
-          bodySmall: GoogleFonts.inter(fontSize: 12),
+// === WIDGET PEMERIKSA LOGIN (AUTH GATE) ===
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
 
-          // Inter buat label
-          labelLarge: GoogleFonts.inter(
-              fontSize: 14, fontWeight: FontWeight.w600),
-          labelMedium: GoogleFonts.inter(
-              fontSize: 12, fontWeight: FontWeight.w500),
-          labelSmall: GoogleFonts.inter(
-              fontSize: 11, fontWeight: FontWeight.w500),
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  @override
+  void initState() {
+    super.initState();
+    _checkLoginStatus();
+  }
+
+  Future<void> _checkLoginStatus() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('token');
+    String? userDataStr = prefs.getString('user_data');
+
+    // 1. Kalau Token ada, lempar ke halaman yang sesuai
+    if (token != null && token.isNotEmpty && userDataStr != null) {
+      try {
+        final userData = jsonDecode(userDataStr);
+        final isAdmin = userData['is_admin'] == true || userData['is_admin'] == 1;
+
+        if (!mounted) return;
+        if (isAdmin) {
+          // Lempar ke Admin Dashboard
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const AdminScreen()),
+          );
+        } else {
+          // Lempar ke Home Mahasiswa
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
+        }
+        return; // Hentikan proses di sini
+      } catch (e) {
+        // Kalau data corrupt, hapus aja
+        await prefs.clear();
+      }
+    }
+
+    // 2. Kalau Token GAK ADA, lempar ke Login
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Tampilan loading pas lagi ngecek token
+    return const Scaffold(
+      backgroundColor: Color(0xFF0B132B), // Warna background
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.school_outlined, size: 60, color: Colors.white),
+            SizedBox(height: 20),
+            CircularProgressIndicator(color: Colors.white),
+          ],
         ),
       ),
-      home: const LoginScreen(),
     );
   }
 }

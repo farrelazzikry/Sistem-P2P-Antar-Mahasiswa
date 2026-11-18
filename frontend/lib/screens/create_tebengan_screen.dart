@@ -128,7 +128,26 @@ class _CreateTebenganScreenState extends State<CreateTebenganScreen> {
       );
 
       if (!mounted) return;
-      _showSnackBar('Tebengan berhasil dibuat!', Colors.green);
+
+      // === INTERAKSI SUKSES (POIN D) ===
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 12),
+              Text(
+                'Tebengan berhasil diposting!',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+        ),
+      );
+
       Navigator.pop(context, true);
     } catch (e) {
       _showSnackBar(e.toString(), Colors.red);

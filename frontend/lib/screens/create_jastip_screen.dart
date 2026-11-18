@@ -33,8 +33,6 @@ class _CreateJastipScreenState extends State<CreateJastipScreen> {
     final prefs = await SharedPreferences.getInstance();
     final userData = prefs.getString('user_data');
     if (userData != null) {
-      // Parse JSON simple untuk ambil phone
-      // (bisa pake jsonDecode kalau mau lebih rapi)
       final phoneMatch = RegExp(r'"phone":"([^"]*)"').firstMatch(userData);
       if (phoneMatch != null && phoneMatch.group(1) != 'null') {
         _whatsappController.text = phoneMatch.group(1) ?? '';
@@ -43,9 +41,8 @@ class _CreateJastipScreenState extends State<CreateJastipScreen> {
   }
 
   void _showSnackBar(String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: color),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
   }
 
   Future<void> _submit() async {
@@ -79,7 +76,26 @@ class _CreateJastipScreenState extends State<CreateJastipScreen> {
       );
 
       if (!mounted) return;
-      _showSnackBar('Order jastip berhasil dibuat!', Colors.green);
+
+      // === INTERAKSI SUKSES (POIN D) ===
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 12),
+              Text(
+                'Order Jastip berhasil diposting!',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+        ),
+      );
+
       Navigator.pop(context, true);
     } catch (e) {
       _showSnackBar(e.toString(), Colors.red);
@@ -104,38 +120,48 @@ class _CreateJastipScreenState extends State<CreateJastipScreen> {
                   CircleAvatar(
                     backgroundColor: Colors.white.withValues(alpha: 0.1),
                     child: IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new,
-                          size: 18, color: Colors.white),
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new,
+                        size: 18,
+                        color: Colors.white,
+                      ),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ),
                   const Spacer(),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 6),
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Text('Buat Order',
-                        style:
-                            TextStyle(fontSize: 12, color: Colors.white)),
+                    child: const Text(
+                      'Buat Order',
+                      style: TextStyle(fontSize: 12, color: Colors.white),
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 24),
-              const Text('Buat Order Jastip',
-                  style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white)),
+              const Text(
+                'Buat Order Jastip',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
               const SizedBox(height: 8),
               Text(
                 'Isi detail barang yang mau dititip. Runner akan hubungi kamu via WhatsApp.',
                 style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.white.withValues(alpha: 0.7),
-                    height: 1.5),
+                  fontSize: 13,
+                  color: Colors.white.withValues(alpha: 0.7),
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 20),
 
@@ -144,8 +170,9 @@ class _CreateJastipScreenState extends State<CreateJastipScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF1B2846).withValues(alpha: 0.85),
                   borderRadius: BorderRadius.circular(24),
-                  border:
-                      Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,18 +182,22 @@ class _CreateJastipScreenState extends State<CreateJastipScreen> {
                     const SizedBox(height: 16),
 
                     _label('Deskripsi', 'Opsional'),
-                    _input(_itemDescController, 'Catatan tambahan',
-                        maxLines: 3),
+                    _input(
+                      _itemDescController,
+                      'Catatan tambahan',
+                      maxLines: 3,
+                    ),
                     const SizedBox(height: 16),
 
                     _label('Lokasi Beli', 'Wajib'),
-                    _input(_buyLocationController,
-                        'Contoh: Warung Pak Slamet'),
+                    _input(_buyLocationController, 'Contoh: Warung Pak Slamet'),
                     const SizedBox(height: 16),
 
                     _label('Lokasi Antar', 'Wajib'),
-                    _input(_deliveryLocationController,
-                        'Contoh: Asrama Mahasiswa Lt. 3'),
+                    _input(
+                      _deliveryLocationController,
+                      'Contoh: Asrama Mahasiswa Lt. 3',
+                    ),
                     const SizedBox(height: 16),
 
                     Row(
@@ -176,8 +207,11 @@ class _CreateJastipScreenState extends State<CreateJastipScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               _label('Budget', 'Wajib'),
-                              _input(_budgetController, '25000',
-                                  keyboardType: TextInputType.number),
+                              _input(
+                                _budgetController,
+                                '25000',
+                                keyboardType: TextInputType.number,
+                              ),
                             ],
                           ),
                         ),
@@ -187,8 +221,11 @@ class _CreateJastipScreenState extends State<CreateJastipScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               _label('Fee Runner', 'Opsional'),
-                              _input(_feeController, '5000',
-                                  keyboardType: TextInputType.number),
+                              _input(
+                                _feeController,
+                                '5000',
+                                keyboardType: TextInputType.number,
+                              ),
                             ],
                           ),
                         ),
@@ -197,14 +234,18 @@ class _CreateJastipScreenState extends State<CreateJastipScreen> {
                     const SizedBox(height: 16),
 
                     _label('Nomor WhatsApp', 'Wajib'),
-                    _input(_whatsappController, '08xxxxxxxxxx',
-                        keyboardType: TextInputType.phone),
+                    _input(
+                      _whatsappController,
+                      '08xxxxxxxxxx',
+                      keyboardType: TextInputType.phone,
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       'Nomor ini akan dipakai Runner untuk menghubungi kamu.',
                       style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.white.withValues(alpha: 0.5)),
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.5),
+                      ),
                     ),
                     const SizedBox(height: 24),
 
@@ -217,21 +258,28 @@ class _CreateJastipScreenState extends State<CreateJastipScreen> {
                           backgroundColor: Colors.white,
                           foregroundColor: Colors.black,
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         child: _isLoading
                             ? const SizedBox(
                                 width: 24,
                                 height: 24,
                                 child: CircularProgressIndicator(
-                                    color: Colors.black, strokeWidth: 2))
+                                  color: Colors.black,
+                                  strokeWidth: 2,
+                                ),
+                              )
                             : const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Text('Posting Order',
-                                      style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold)),
+                                  Text(
+                                    'Posting Order',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                   SizedBox(width: 8),
                                   Icon(Icons.send, size: 20),
                                 ],
@@ -254,16 +302,22 @@ class _CreateJastipScreenState extends State<CreateJastipScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(text,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white)),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
           if (right != null)
-            Text(right,
-                style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.6))),
+            Text(
+              right,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.white.withValues(alpha: 0.6),
+              ),
+            ),
         ],
       ),
     );
@@ -282,21 +336,20 @@ class _CreateJastipScreenState extends State<CreateJastipScreen> {
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle:
-            TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
         filled: true,
         fillColor: Colors.white.withValues(alpha: 0.08),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide:
-              BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide:
-              BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

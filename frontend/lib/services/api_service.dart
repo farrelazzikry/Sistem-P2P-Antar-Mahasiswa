@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://127.0.0.1:8000/api';
+  static const String baseUrl = 'http://192.168.18.98:8000/api';
   late Dio _dio;
 
   ApiService() {
@@ -426,6 +426,61 @@ class ApiService {
   Future<Response> getTebenganHistory() async {
     try {
       return await _dio.get('/tebengans/history');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // ============================================
+  // NOTIFICATIONS
+  // ============================================
+  Future<Response> getNotifications() async {
+    try {
+      return await _dio.get('/notifications');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Response> markNotificationsAsRead() async {
+    try {
+      return await _dio.post('/notifications/read');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+    // ============================================
+  // ADMIN
+  // ============================================
+  Future<Response> getAdminUsers({String? status}) async {
+    try {
+      final query = status != null ? {'status': status} : null;
+      return await _dio.get('/admin/users', queryParameters: query);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Response> approveUser(int id) async {
+    try {
+      return await _dio.post('/admin/users/$id/approve');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Response> rejectUser(int id) async {
+    try {
+      return await _dio.post('/admin/users/$id/reject');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+    Future<Response> adminResetPassword(int userId, String newPassword) async {
+    try {
+      return await _dio.post('/admin/users/$userId/reset-password', data: {
+        'new_password': newPassword,
+      });
     } on DioException catch (e) {
       throw _handleError(e);
     }
