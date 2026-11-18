@@ -30,6 +30,7 @@ class User extends Authenticatable
         'rating_as_driver',
         'rating_as_requester',
         'total_trips',
+        'is_admin',
     ];
 
     protected $hidden = [
@@ -44,6 +45,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'otp_expires_at' => 'datetime',
             'password' => 'hashed',
+            'is_admin' => 'boolean', 
+            'is_runner' => 'boolean',
         ];
     }
 }

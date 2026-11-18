@@ -9,11 +9,6 @@ use Illuminate\Support\Facades\Validator;
 
 class JastipController extends Controller
 {
-    /**
-     * LIST FEED JASTIP
-     * GET /api/jastips
-     * Query param: ?status=open (opsional)
-     */
     public function index(Request $request)
     {
         $query = Jastip::with(['requester:id,name,username,profile_photo'])
@@ -35,10 +30,6 @@ class JastipController extends Controller
         ], 200);
     }
 
-    /**
-     * DETAIL JASTIP
-     * GET /api/jastips/{id}
-     */
     public function show(Request $request, $id)
     {
         $jastip = Jastip::with([
@@ -53,10 +44,6 @@ class JastipController extends Controller
         return response()->json(['data' => $jastip], 200);
     }
 
-    /**
-     * BUAT ORDER JASTIP
-     * POST /api/jastips
-     */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -85,16 +72,21 @@ class JastipController extends Controller
             'status' => 'open',
         ]);
 
+        // ============================================
+        // TAMBAHAN: KIRIM NOTIFIKASI KE SEMUA RUNNER
+        // ============================================
+        $runners = \App\Models\User::where('is_runner', true)->get();
+        foreach ($runners as $runner) {
+            $runner->notify(new \App\Notifications\NewOrderNotification('Jastip', $jastip->item_name));
+        }
+        // ============================================
+
         return response()->json([
             'message' => 'Order jastip berhasil dibuat',
             'data' => $jastip->load('requester:id,name,username,profile_photo'),
         ], 201);
     }
 
-    /**
-     * AMBIL ORDER (RUNNER)
-     * POST /api/jastips/{id}/take
-     */
     public function take(Request $request, $id)
     {
         $user = $request->user();
@@ -124,17 +116,21 @@ class JastipController extends Controller
             'status' => 'taken',
         ]);
 
+        // ============================================
+        // TAMBAHAN: KIRIM NOTIFIKASI KE REQUESTER
+        // ============================================
+        $requester = \App\Models\User::find($jastip->requester_id);
+        if ($requester) {
+            $requester->notify(new \App\Notifications\OrderTakenNotification($user->name, 'Jastip'));
+        }
+        // ============================================
+
         return response()->json([
             'message' => 'Order berhasil diambil',
             'data' => $jastip->load(['requester:id,name,username,phone']),
         ], 200);
     }
 
-    /**
-     * UPDATE STATUS
-     * POST /api/jastips/{id}/status
-     * Body: { status: 'on_progress' | 'done' | 'cancelled' }
-     */
     public function updateStatus(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
@@ -160,7 +156,6 @@ class JastipController extends Controller
 
         $newStatus = $request->status;
 
-        // VALIDASI TRANSISI STATUS
         if ($newStatus === 'on_progress') {
             if (!$isRunner) {
                 return response()->json(['message' => 'Hanya Runner yang bisa memulai order'], 403);
@@ -169,7 +164,6 @@ class JastipController extends Controller
                 return response()->json(['message' => 'Order belum diambil'], 400);
             }
         } elseif ($newStatus === 'done') {
-            // HANYA REQUESTER yang bisa selesaikan
             if (!$isRequester) {
                 return response()->json(['message' => 'Hanya Pemesan yang bisa menyelesaikan order'], 403);
             }
@@ -177,13 +171,23 @@ class JastipController extends Controller
                 return response()->json(['message' => 'Order belum dimulai oleh Runner'], 400);
             }
         } elseif ($newStatus === 'cancelled') {
-            // HANYA RUNNER yang bisa minta cancel (setelah ambil order)
             if (!$isRunner) {
-                return response()->json(['message' => 'Hanya Runner yang bisa minta cancel'], 403);
+                return response()->json(['message' => 'Hanya Runner yang bisa cancel'], 403);
             }
             if (!in_array($jastip->status, ['taken', 'on_progress'])) {
                 return response()->json(['message' => 'Order belum diambil'], 400);
             }
+
+            // === LOGIKA BALIK KE FEED ===
+            $jastip->update([
+                'runner_id' => null,
+                'status' => 'open'
+            ]);
+
+            return response()->json([
+                'message' => 'Order dibatalkan dan dikembalikan ke feed',
+                'data' => $jastip,
+            ], 200);
         }
 
         $jastip->update(['status' => $newStatus]);
@@ -193,10 +197,7 @@ class JastipController extends Controller
             'data' => $jastip,
         ], 200);
     }
-    /**
-     * MY ORDERS (AKTIF)
-     * Return: order aktif + order done yang BELUM di-rating user ini
-     */
+
     public function myOrders(Request $request)
     {
         $user = $request->user();
@@ -235,15 +236,11 @@ class JastipController extends Controller
             'my_tasks' => $myTasks,
         ], 200);
     }
-    /**
-     * HISTORY
-     * Return: order done yang UDAH di-rating user + order cancelled
-     */
+
     public function history(Request $request)
     {
         $user = $request->user();
 
-        // Sebagai Requester
         $asRequester = Jastip::with('runner:id,name,username,profile_photo')
             ->where('requester_id', $user->id)
             ->where(function ($q) use ($user) {
@@ -258,7 +255,6 @@ class JastipController extends Controller
             ->orderBy('updated_at', 'desc')
             ->get();
 
-        // Sebagai Runner
         $asRunner = Jastip::with('requester:id,name,username,profile_photo')
             ->where('runner_id', $user->id)
             ->where(function ($q) use ($user) {

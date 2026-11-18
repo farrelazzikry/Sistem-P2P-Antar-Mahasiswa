@@ -9,10 +9,6 @@ use Illuminate\Support\Facades\Validator;
 
 class TebenganController extends Controller
 {
-    /**
-     * LIST FEED TEBENGAN
-     * GET /api/tebengans?status=open
-     */
     public function index(Request $request)
     {
         $query = Tebengan::with(['requester:id,name,username,profile_photo'])
@@ -34,9 +30,6 @@ class TebenganController extends Controller
         ], 200);
     }
 
-    /**
-     * DETAIL
-     */
     public function show(Request $request, $id)
     {
         $tebengan = Tebengan::with([
@@ -51,9 +44,6 @@ class TebenganController extends Controller
         return response()->json(['data' => $tebengan], 200);
     }
 
-    /**
-     * BUAT TEBENGAN
-     */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -80,15 +70,23 @@ class TebenganController extends Controller
             'status' => 'open',
         ]);
 
+        // ============================================
+        // TAMBAHAN: KIRIM NOTIFIKASI KE SEMUA RUNNER
+        // ============================================
+        // Karena tebengan gak ada 'item_name', kita pake rute sebagai judul notif
+        $rute = $tebengan->pickup_location . ' ke ' . $tebengan->destination;
+        $runners = \App\Models\User::where('is_runner', true)->get();
+        foreach ($runners as $runner) {
+            $runner->notify(new \App\Notifications\NewOrderNotification('Tebengan', $rute));
+        }
+        // ============================================
+
         return response()->json([
             'message' => 'Tebengan berhasil dibuat',
             'data' => $tebengan->load('requester:id,name,username,profile_photo'),
         ], 201);
     }
 
-    /**
-     * AMBIL TEBENGAN (RUNNER)
-     */
     public function take(Request $request, $id)
     {
         $user = $request->user();
@@ -117,15 +115,21 @@ class TebenganController extends Controller
             'status' => 'taken',
         ]);
 
+        // ============================================
+        // TAMBAHAN: KIRIM NOTIFIKASI KE REQUESTER
+        // ============================================
+        $requester = \App\Models\User::find($tebengan->requester_id);
+        if ($requester) {
+            $requester->notify(new \App\Notifications\OrderTakenNotification($user->name, 'Tebengan'));
+        }
+        // ============================================
+
         return response()->json([
             'message' => 'Tebengan berhasil diambil',
             'data' => $tebengan->load(['requester:id,name,username,phone']),
         ], 200);
     }
 
-    /**
-     * UPDATE STATUS
-     */
     public function updateStatus(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
@@ -172,6 +176,17 @@ class TebenganController extends Controller
             if (!in_array($tebengan->status, ['taken', 'on_progress'])) {
                 return response()->json(['message' => 'Tebengan belum diambil'], 400);
             }
+
+            // === LOGIKA BALIK KE FEED ===
+            $tebengan->update([
+                'runner_id' => null,
+                'status' => 'open'
+            ]);
+
+            return response()->json([
+                'message' => 'Tebengan dibatalkan dan dikembalikan ke feed',
+                'data' => $tebengan,
+            ], 200);
         }
 
         $tebengan->update(['status' => $newStatus]);
@@ -182,9 +197,6 @@ class TebenganController extends Controller
         ], 200);
     }
 
-    /**
-     * MY ORDERS
-     */
     public function myOrders(Request $request)
     {
         $user = $request->user();
@@ -194,12 +206,12 @@ class TebenganController extends Controller
             ->where('requester_id', $user->id)
             ->where(function ($q) use ($activeStatuses, $user) {
                 $q->whereIn('status', $activeStatuses)
-                  ->orWhere(function ($q2) use ($user) {
-                      $q2->where('status', 'done')
-                         ->whereDoesntHave('ratings', function ($q3) use ($user) {
-                             $q3->where('rater_id', $user->id);
-                         });
-                  });
+                    ->orWhere(function ($q2) use ($user) {
+                        $q2->where('status', 'done')
+                            ->whereDoesntHave('ratings', function ($q3) use ($user) {
+                                $q3->where('rater_id', $user->id);
+                            });
+                    });
             })
             ->orderBy('created_at', 'desc')
             ->get();
@@ -208,12 +220,12 @@ class TebenganController extends Controller
             ->where('runner_id', $user->id)
             ->where(function ($q) use ($activeStatuses, $user) {
                 $q->whereIn('status', $activeStatuses)
-                  ->orWhere(function ($q2) use ($user) {
-                      $q2->where('status', 'done')
-                         ->whereDoesntHave('ratings', function ($q3) use ($user) {
-                             $q3->where('rater_id', $user->id);
-                         });
-                  });
+                    ->orWhere(function ($q2) use ($user) {
+                        $q2->where('status', 'done')
+                            ->whereDoesntHave('ratings', function ($q3) use ($user) {
+                                $q3->where('rater_id', $user->id);
+                            });
+                    });
             })
             ->orderBy('created_at', 'desc')
             ->get();
@@ -224,21 +236,18 @@ class TebenganController extends Controller
         ], 200);
     }
 
-    /**
-     * HISTORY
-     */
     public function history(Request $request)
     {
         $user = $request->user();
 
         $filter = function ($q) use ($user) {
             $q->where('status', 'cancelled')
-              ->orWhere(function ($q2) use ($user) {
-                  $q2->where('status', 'done')
-                     ->whereHas('ratings', function ($q3) use ($user) {
-                         $q3->where('rater_id', $user->id);
-                     });
-              });
+                ->orWhere(function ($q2) use ($user) {
+                    $q2->where('status', 'done')
+                        ->whereHas('ratings', function ($q3) use ($user) {
+                            $q3->where('rater_id', $user->id);
+                        });
+                });
         };
 
         $asRequester = Tebengan::with('runner:id,name,username,profile_photo')

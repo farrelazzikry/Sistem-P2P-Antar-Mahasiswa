@@ -91,6 +91,7 @@ class ProfileController extends Controller
                 : null,
             'status' => $user->status,
             'is_runner' => (bool) $user->is_runner,
+            'is_admin' => (bool) $user->is_admin,
             'vehicle_type' => $user->vehicle_type,
             'vehicle_plate' => $user->vehicle_plate,
             'rating_as_driver' => (float) $user->rating_as_driver,

@@ -105,7 +105,7 @@ class AuthController extends Controller
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:8',
             'otp' => 'required|string',
-            'nim' => 'nullable|string',
+            'nim' => 'required|string|unique:users,nim',
             'ktm_file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120', // max 5MB
         ]);
 
@@ -137,6 +137,11 @@ class AuthController extends Controller
         ]);
 
         Cache::forget('otp_' . $request->email);
+
+        $admins = \App\Models\User::where('is_admin', true)->get();
+        foreach ($admins as $admin) {
+            $admin->notify(new \App\Notifications\NewUserRegisteredNotification($user));
+        }
 
         return response()->json([
             'message' => 'Registrasi berhasil! Akun Anda menunggu verifikasi admin.',

@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Storage;
 use App\Http\Controllers\Api\JastipController;
 use App\Http\Controllers\Api\RatingController;
 use App\Http\Controllers\Api\TebenganController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\AdminController;
 
 // ============================================
 // PUBLIC ROUTES (gak butuh login)
@@ -37,11 +39,20 @@ Route::get('/storage/{path}', function ($path) {
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
+    // ADMIN ROUTES
+    Route::get('/admin/users', [AdminController::class, 'getUsers']);
+    Route::post('/admin/users/{id}/approve', [AdminController::class, 'approveUser']);
+    Route::post('/admin/users/{id}/reject', [AdminController::class, 'rejectUser']);
+    Route::post('/admin/users/{id}/reset-password', [AdminController::class, 'resetPassword']);
+
+    // Notifications
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/read', [NotificationController::class, 'markAsRead']);
+
     // Profile
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile/update', [ProfileController::class, 'update']);
 
-    // Jastip
     // Jastip
     Route::get('/jastips', [JastipController::class, 'index']);
     Route::post('/jastips', [JastipController::class, 'store']);
@@ -62,7 +73,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tebengans/history', [TebenganController::class, 'history']);
     Route::get('/tebengans/{id}', [TebenganController::class, 'show']);
     Route::post('/tebengans/{id}/join', [TebenganController::class, 'join']);
-    Route::post('/tebengans/{id}/take', [TebenganController::class, 'take']); 
+    Route::post('/tebengans/{id}/take', [TebenganController::class, 'take']);
     Route::post('/tebengans/{id}/cancel', [TebenganController::class, 'cancel']);
     Route::post('/tebengans/{id}/status', [TebenganController::class, 'updateStatus']);
 
